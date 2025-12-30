@@ -69,9 +69,9 @@ pip install -r requirements.txt
 # Copy the example environment file
 cp .env.example .env
 
-# Edit .env and add your IBM Quantum API token
-# Get your token from: https://quantum.ibm.com/account
-# Replace 'your_ibm_quantum_api_token_here' with your actual token
+# Edit .env and add the IBM Quantum API token
+# Token available at: https://quantum.ibm.com/account
+# Replace 'your_ibm_quantum_api_token_here' with the actual token
 ```
 
 The `.env` file should contain:
@@ -221,7 +221,7 @@ python compare_shots.py
 ### IBM Quantum Setup
 
 1. Create an IBM Quantum account at https://quantum.ibm.com/
-2. Get your API token from the account page
+2. Obtain the API token from the account page
 3. Configure the token:
 
 ```python
