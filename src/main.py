@@ -40,11 +40,44 @@ def main():
     """Main execution function."""
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Run VQE for Heisenberg model')
+    
+    # Execution mode selection
+    parser.add_argument(
+        '--mode',
+        type=str,
+        choices=['all', 'exact', 'shots', 'hardware'],
+        default='all',
+        help='Execution mode: all (default), exact (statevector only), shots (shot-based only), hardware (quantum hardware only)'
+    )
     parser.add_argument(
         '--hardware',
         action='store_true',
-        help='Run on real quantum hardware (requires IBM Quantum account)'
+        help='[DEPRECATED: use --mode hardware] Run on real quantum hardware (requires IBM Quantum account)'
     )
+    
+    # Hamiltonian parameters
+    parser.add_argument(
+        '--J',
+        type=float,
+        default=HAMILTONIAN_CONFIG['J'],
+        help=f'Interaction strength J (default: {HAMILTONIAN_CONFIG["J"]})'
+    )
+    parser.add_argument(
+        '--delta',
+        type=float,
+        default=HAMILTONIAN_CONFIG['delta'],
+        help=f'Anisotropy parameter Δ (default: {HAMILTONIAN_CONFIG["delta"]})'
+    )
+    
+    # Circuit parameters
+    parser.add_argument(
+        '--depth',
+        type=int,
+        default=ANSATZ_CONFIG['depth'],
+        help=f'Ansatz depth (default: {ANSATZ_CONFIG["depth"]})'
+    )
+    
+    # Optimization parameters
     parser.add_argument(
         '--shots',
         type=int,
@@ -57,13 +90,13 @@ def main():
         default=OPTIMIZER_CONFIG['max_iter'],
         help=f'Maximum optimization iterations (default: {OPTIMIZER_CONFIG["max_iter"]})'
     )
-    parser.add_argument(
-        '--depth',
-        type=int,
-        default=ANSATZ_CONFIG['depth'],
-        help=f'Ansatz depth (default: {ANSATZ_CONFIG["depth"]})'
-    )
+    
     args = parser.parse_args()
+    
+    # Handle deprecated --hardware flag
+    if args.hardware:
+        print("⚠️  Warning: --hardware flag is deprecated. Use --mode hardware instead.")
+        args.mode = 'hardware'
     
     print("=" * 70)
     print("VQE for 2-Qubit Heisenberg XXZ Model")
@@ -77,11 +110,8 @@ def main():
     ansatz, theta = he_ansatz_2q(depth=args.depth)
     print(f"✓ Ansatz: {ansatz.num_parameters} parameters, depth={ansatz.depth()}")
     
-    H = heisenberg_xxz_2q(
-        J=HAMILTONIAN_CONFIG['J'],
-        delta=HAMILTONIAN_CONFIG['delta']
-    )
-    print(f"✓ Hamiltonian: J={HAMILTONIAN_CONFIG['J']}, Δ={HAMILTONIAN_CONFIG['delta']}")
+    H = heisenberg_xxz_2q(J=args.J, delta=args.delta)
+    print(f"✓ Hamiltonian: J={args.J}, Δ={args.delta}")
     print(f"  Terms: {H.paulis}")
     
     results = {}
@@ -89,42 +119,47 @@ def main():
     # ========================================================================
     # STEP 2: Exact statevector simulation
     # ========================================================================
-    print("\n" + "=" * 70)
-    print("1️⃣  EXACT STATEVECTOR SIMULATION")
-    print("=" * 70)
-    
-    vqe_result_exact = run_vqe(
-        ansatz=ansatz,
-        hamiltonian=H,
-        energy_func=energy_expectation,
-        method=OPTIMIZER_CONFIG['method'],
-        max_iter=args.max_iter
-    )
-    results['Exact'] = vqe_result_exact
-    print_vqe_summary(vqe_result_exact, "Exact Statevector")
+    if args.mode in ['all', 'exact']:
+        print("\n" + "=" * 70)
+        print("1️⃣  EXACT STATEVECTOR SIMULATION")
+        print("=" * 70)
+        
+        vqe_result_exact = run_vqe(
+            ansatz=ansatz,
+            hamiltonian=H,
+            energy_func=energy_expectation,
+            method=OPTIMIZER_CONFIG['method'],
+            max_iter=args.max_iter
+        )
+        results['Exact'] = vqe_result_exact
+        print_vqe_summary(vqe_result_exact, "Exact Statevector")
     
     # ========================================================================
     # STEP 3: Shot-based simulation
     # ========================================================================
-    print("\n" + "=" * 70)
-    print("2️⃣  SHOT-BASED SIMULATION")
-    print("=" * 70)
-    
-    vqe_result_shots = run_vqe(
-        ansatz=ansatz,
-        hamiltonian=H,
-        energy_func=lambda c, h, p: energy_expectation_shots(c, h, p, shots=args.shots),
-        initial_params=None,  # Random initialization
-        method=OPTIMIZER_CONFIG['method'],
-        max_iter=args.max_iter
-    )
-    results['Shots'] = vqe_result_shots
-    print_vqe_summary(vqe_result_shots, f"Shot-based ({args.shots} shots)")
+    if args.mode in ['all', 'shots']:
+        print("\n" + "=" * 70)
+        print("2️⃣  SHOT-BASED SIMULATION")
+        print("=" * 70)
+        
+        # Use exact result as warm start if available, otherwise random
+        initial_params_shots = results.get('Exact', {}).get('optimal_params', None)
+        
+        vqe_result_shots = run_vqe(
+            ansatz=ansatz,
+            hamiltonian=H,
+            energy_func=lambda c, h, p: energy_expectation_shots(c, h, p, shots=args.shots),
+            initial_params=initial_params_shots,
+            method=OPTIMIZER_CONFIG['method'],
+            max_iter=args.max_iter
+        )
+        results['Shots'] = vqe_result_shots
+        print_vqe_summary(vqe_result_shots, f"Shot-based ({args.shots} shots)")
     
     # ========================================================================
     # STEP 4: Real quantum hardware (optional)
     # ========================================================================
-    if args.hardware:
+    if args.mode in ['all', 'hardware']:
         print("\n" + "=" * 70)
         print("3️⃣  REAL QUANTUM HARDWARE")
         print("=" * 70)
@@ -180,13 +215,17 @@ def main():
             
             # Run VQE on hardware
             print("\n⚠️  Starting hardware execution...")
-            print(f"Using warm start from simulation: {HARDWARE_CONFIG['use_warm_start']}")
             
-            initial_params_hw = (
-                vqe_result_exact['optimal_params']
-                if HARDWARE_CONFIG['use_warm_start']
-                else None
-            )
+            # Use best available result as warm start
+            if 'Exact' in results and HARDWARE_CONFIG['use_warm_start']:
+                initial_params_hw = results['Exact']['optimal_params']
+                print("Using warm start from exact simulation")
+            elif 'Shots' in results and HARDWARE_CONFIG['use_warm_start']:
+                initial_params_hw = results['Shots']['optimal_params']
+                print("Using warm start from shot-based simulation")
+            else:
+                initial_params_hw = None
+                print("Using random initialization")
             
             vqe_result_hardware = run_vqe(
                 ansatz=transpiled_ansatz,
@@ -210,35 +249,41 @@ def main():
     # ========================================================================
     # STEP 5: Analysis and comparison
     # ========================================================================
-    print("\n" + "=" * 70)
-    print("📊 COMPREHENSIVE COMPARISON")
-    print("=" * 70)
-    
-    # Print comparison table
-    reference_energy = results['Exact']['optimal_energy']
-    print(f"\n{'Method':<20} {'Energy':>12} {'Error':>12} {'Iterations':>12}")
-    print("-" * 70)
-    
-    for method_name, result in results.items():
-        energy = result['optimal_energy']
-        error = abs(energy - reference_energy)
-        iters = result['num_iterations']
-        print(f"{method_name:<20} {energy:>+12.6f} {error:>12.6f} {iters:>12}")
-    
-    print("\n💡 Insights:")
-    if 'Shots' in results:
-        shot_error = abs(results['Shots']['optimal_energy'] - reference_energy)
-        shot_pct = (shot_error / abs(reference_energy)) * 100
-        print(f"   • Shot noise ({args.shots} shots): ~{shot_pct:.2f}% error")
-    
-    if 'Hardware' in results:
-        hw_error = abs(results['Hardware']['optimal_energy'] - reference_energy)
-        hw_pct = (hw_error / abs(reference_energy)) * 100
-        print(f"   • Hardware noise: ~{hw_pct:.2f}% error")
+    if results:
+        print("\n" + "=" * 70)
+        print("📊 COMPREHENSIVE COMPARISON")
+        print("=" * 70)
         
-        if 'Shots' in results:
-            if hw_error > shot_error:
-                print("   • Hardware is noisier than shot simulation (expected)")
+        # Print comparison table
+        # Use Exact as reference if available, otherwise use first result
+        reference_key = 'Exact' if 'Exact' in results else list(results.keys())[0]
+        reference_energy = results[reference_key]['optimal_energy']
+        
+        print(f"\n{'Method':<20} {'Energy':>12} {'Error':>12} {'Iterations':>12}")
+        print("-" * 70)
+        
+        for method_name, result in results.items():
+            energy = result['optimal_energy']
+            error = abs(energy - reference_energy) if method_name != reference_key else 0.0
+            iters = result['num_iterations']
+            ref_mark = " [reference]" if method_name == reference_key else ""
+            print(f"{method_name:<20} {energy:>+12.6f} {error:>12.6f} {iters:>12}{ref_mark}")
+        
+        print("\n💡 Insights:")
+        if 'Shots' in results and 'Exact' in results:
+            shot_error = abs(results['Shots']['optimal_energy'] - results['Exact']['optimal_energy'])
+            shot_pct = (shot_error / abs(results['Exact']['optimal_energy'])) * 100
+            print(f"   • Shot noise ({args.shots} shots): ~{shot_pct:.2f}% error")
+        
+        if 'Hardware' in results and 'Exact' in results:
+            hw_error = abs(results['Hardware']['optimal_energy'] - results['Exact']['optimal_energy'])
+            hw_pct = (hw_error / abs(results['Exact']['optimal_energy'])) * 100
+            print(f"   • Hardware noise: ~{hw_pct:.2f}% error")
+            
+            if 'Shots' in results:
+                shot_error = abs(results['Shots']['optimal_energy'] - results['Exact']['optimal_energy'])
+                if hw_error > shot_error:
+                    print("   • Hardware is noisier than shot simulation (expected)")
             else:
                 print("   • Hardware performed better than expected!")
     

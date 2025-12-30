@@ -102,28 +102,60 @@ This executes:
 2. Shot-based simulation (realistic noise)
 3. Comprehensive comparison and analysis
 
-### Run on Real Quantum Hardware
+### Execution Modes
+
+Select which simulations to run using the `--mode` flag:
 
 ```bash
-python main.py --hardware
+# Run all simulations (default)
+python main.py --mode all
+
+# Run only exact statevector simulation
+python main.py --mode exact
+
+# Run only shot-based simulation
+python main.py --mode shots
+
+# Run only on quantum hardware
+python main.py --mode hardware
 ```
 
-**Note**: Requires IBM Quantum API token configured in `.env` file (see Installation step 4).
+**Note**: Hardware mode requires IBM Quantum API token configured in `.env` file (see Installation step 4).
+
+### Customize Hamiltonian Parameters
+
+```bash
+# Change interaction strength J
+python main.py --J 2.0
+
+# Change anisotropy parameter Δ (delta)
+python main.py --delta 0.5
+
+# Combine with other options
+python main.py --J 1.5 --delta 2.0 --mode exact
+```
 
 ### Command Line Options
 
 ```bash
-# Custom shot count
-python main.py --shots 5000
+# Execution control
+--mode {all,exact,shots,hardware}    # Choose execution mode (default: all)
 
-# More optimization iterations
-python main.py --max-iter 300
+# Hamiltonian parameters
+--J FLOAT                            # Interaction strength (default: 1.0)
+--delta FLOAT                        # Anisotropy parameter Δ (default: 1.0)
 
-# Deeper ansatz circuit
-python main.py --depth 2
+# Circuit parameters
+--depth INT                          # Ansatz depth (default: 1)
 
-# Combine options
-python main.py --shots 5000 --max-iter 300 --depth 2
+# Optimization parameters
+--shots INT                          # Number of shots for simulation (default: 2000)
+--max-iter INT                       # Maximum iterations (default: 200)
+
+# Examples
+python main.py --J 0.5 --delta 1.5 --shots 5000
+python main.py --mode exact --max-iter 300 --depth 2
+python main.py --mode hardware --J 2.0 --shots 1024
 ```
 
 ## Using as a Library
