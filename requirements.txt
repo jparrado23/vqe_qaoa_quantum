@@ -1,20 +1,57 @@
-# VQE QAOA Quantum Computing - Requirements
+# VQE & QAOA Quantum Computing - Requirements
 
-# Core quantum computing libraries
+# ============================================================================
+# Core Quantum Computing Libraries
+# ============================================================================
 qiskit>=2.0.0
 qiskit-ibm-runtime>=0.30.0
 
-# Scientific computing
+# ============================================================================
+# Scientific Computing
+# ============================================================================
 numpy>=1.24.0
 scipy>=1.10.0
 
+# ============================================================================
 # Visualization
+# ============================================================================
 matplotlib>=3.7.0
 
-# Environment variables
+# ============================================================================
+# Graph Libraries (for QAOA)
+# ============================================================================
+networkx>=3.0
+rustworkx>=0.13.0
+
+# ============================================================================
+# Classical Solvers (for QAOA baselines)
+# ============================================================================
+# Integer Linear Programming solver for MaxCut
+pulp>=2.7.0
+
+# SAT solver for advanced QAOA techniques
+python-sat>=0.1.8
+
+# ============================================================================
+# Utilities
+# ============================================================================
+# Environment variables management
 python-dotenv>=1.0.0
 
-# Optional: Enhanced features
-# jupyter>=1.0.0           # For notebook support
-# qiskit-aer>=0.15.0       # For advanced simulators
-# pandas>=2.0.0            # For data analysis
+# ============================================================================
+# Optional: Enhanced Features
+# ============================================================================
+# Jupyter notebooks
+# jupyter>=1.0.0
+# ipykernel>=6.25.0
+# ipywidgets>=8.1.0
+
+# Advanced simulators
+# qiskit-aer>=0.15.0
+
+# Data analysis
+# pandas>=2.0.0
+
+# Additional optimization
+# scikit-optimize>=0.9.0
+
